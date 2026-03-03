@@ -6,8 +6,8 @@ Covers: aggregation, reconciliation, additive consistency.
 import numpy as np
 import pytest
 
-from app.forecasting.data_generator import generate_demand_data, build_hierarchy_matrix
-from app.forecasting.hierarchy import aggregate_to_hierarchy, HierarchicalForecaster
+from app.forecasting.data_generator import build_hierarchy_matrix, generate_demand_data
+from app.forecasting.hierarchy import HierarchicalForecaster, aggregate_to_hierarchy
 
 
 @pytest.fixture(scope="module")

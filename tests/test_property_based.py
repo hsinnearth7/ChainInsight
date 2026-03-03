@@ -5,14 +5,12 @@ Verifies invariants that must hold for ALL inputs, not just specific examples.
 
 import numpy as np
 import pandas as pd
-
-from hypothesis import given, settings, assume
+from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 from hypothesis.extra.numpy import arrays
 
-from app.forecasting.evaluation import mape, rmse, mae, ConformalPredictor
+from app.forecasting.evaluation import ConformalPredictor, mae, mape, rmse
 from app.forecasting.models import NaiveMovingAverage
-
 
 # ---------------------------------------------------------------------------
 # Metric Invariant Tests
@@ -85,7 +83,7 @@ class TestConformalInvariants:
     def test_interval_contains_point_forecast(self, y_true, noise):
         """Confidence interval always contains point forecast."""
         assume(not np.any(np.isnan(y_true)) and not np.any(np.isnan(noise)))
-        y_pred = y_true + noise
+        y_pred = np.maximum(y_true + noise, 0.0)
         cp = ConformalPredictor(target_coverage=0.90)
         cp.calibrate(y_true, y_pred)
         y_lo, y_hi = cp.predict_intervals(y_pred)

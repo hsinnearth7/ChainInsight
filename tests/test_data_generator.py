@@ -8,17 +8,16 @@ import pandas as pd
 import pytest
 
 from app.forecasting.data_generator import (
-    HierarchySpec,
-    Y_SCHEMA,
     S_SCHEMA,
     X_FUTURE_SCHEMA,
     X_PAST_SCHEMA,
+    Y_SCHEMA,
+    HierarchySpec,
     build_hierarchy_matrix,
     compute_data_hash,
     generate_demand_data,
     get_data_statistics,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
