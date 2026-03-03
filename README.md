@@ -2,7 +2,7 @@
 
 # ChainInsight — Hierarchical Demand Forecasting + RL Inventory Optimization
 
-**Nixtla-format time series forecasting with PhD-grade evaluation, hierarchical reconciliation, and curriculum-learning RL for a 200-SKU retail supply chain**
+**Nixtla-format time series forecasting with rigorous statistical evaluation, hierarchical reconciliation, and curriculum-learning RL for a 200-SKU retail supply chain**
 
 [![CI](https://img.shields.io/badge/CI-passing-brightgreen.svg)](.github/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
@@ -66,7 +66,7 @@
 
 ## Key Results
 
-### Forecasting Benchmark (PhD-Grade)
+### Forecasting Benchmark
 
 | Model | MAPE ↓ | 95% CI | vs Baseline | p-value | Cohen's d | Best For |
 |-------|--------|--------|-------------|---------|-----------|----------|
@@ -213,7 +213,7 @@ Result: 40% faster convergence; final cost 3% lower than training on full enviro
 ```
 ChainInsight/
 ├── app/
-│   ├── forecasting/                    # A+ Forecasting Module
+│   ├── forecasting/                    # Forecasting Module
 │   │   ├── data_generator.py           # Nixtla format + M5 properties + Pandera
 │   │   ├── contracts.py                # Pandera data contracts
 │   │   ├── models.py                   # 6 models + ForecastModelFactory

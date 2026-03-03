@@ -94,10 +94,10 @@ MLOps      Live Mode
     ├── Drift Monitor (KS, PSI, MAPE)    ├── FastAPI + React SPA
     └── Auto-retrain triggers             ├── WebSocket real-time updates
                                           ├── 8-step ETL pipeline
-                                          └── 28+ publication-ready charts
+                                          └── 28+ charts
 ```
 
-### Key Modules (A+ Additions)
+### Key Modules (v2.0 Additions)
 
 | Module | Path | Description |
 |--------|------|-------------|
