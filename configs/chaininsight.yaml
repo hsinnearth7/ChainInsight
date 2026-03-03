@@ -1,0 +1,116 @@
+# ChainInsight Configuration — Supply Chain Forecasting + RL Replenishment
+# All hard-coded values extracted here for reproducibility and easy tuning.
+
+data:
+  n_skus: 200
+  n_warehouses: 3
+  warehouse_names: ["NYC", "LAX", "CHI"]
+  n_categories: 4
+  n_subcategories_per_category: 5
+  history_days: 730
+  frequency: "D"
+  hierarchy_levels: ["national", "warehouse", "category", "sku"]
+  # M5-style statistical properties
+  intermittent_demand_pct: 0.30       # 30% of SKUs have 50%+ zero-demand days
+  price_elasticity_range: [-0.15, -0.05]
+  censored_demand: true
+  seed: 42
+
+model:
+  default: "lightgbm"
+  naive:
+    window: 30
+  sarimax:
+    order: [1, 1, 1]
+    seasonal_order: [1, 1, 1, 7]
+  xgboost:
+    n_estimators: 200
+    max_depth: 5
+    learning_rate: 0.1
+  lightgbm:
+    n_estimators: 300
+    num_leaves: 31
+    learning_rate: 0.1
+  chronos:
+    model_name: "amazon/chronos-t5-small"
+    prediction_length: 14
+  routing:
+    cold_start_threshold_days: 60
+    intermittency_threshold: 0.5
+
+evaluation:
+  cv_windows: 12
+  step_size: 30
+  horizon: 14
+  metrics: ["mape", "rmse", "mae", "coverage_90"]
+  significance_alpha: 0.05
+  conformal_target_coverage: 0.90
+
+rl:
+  episodes: 300
+  episode_length: 90
+  curriculum:
+    - { n_products: 1, stochastic_lead_time: false, timesteps: 20000 }
+    - { n_products: 3, stochastic_lead_time: false, timesteps: 30000 }
+    - { n_products: 5, stochastic_lead_time: true,  timesteps: 50000 }
+  ppo:
+    learning_rate: 0.0003
+    n_steps: 2048
+    batch_size: 64
+    n_epochs: 10
+    gamma: 0.99
+    gae_lambda: 0.95
+    clip_range: 0.2
+    ent_coef: 0.01
+    vf_coef: 0.5
+  sac:
+    learning_rate: 0.0003
+    buffer_size: 100000
+    batch_size: 256
+    tau: 0.005
+    gamma: 0.99
+
+supply_chain:
+  ordering_cost: 50       # $/order
+  holding_rate: 0.25      # 25% of unit cost per year
+  stockout_penalty: 50.0  # $/unit
+  monte_carlo_sims: 5000
+  ga_population: 100
+  ga_generations: 80
+  ga_mutation_rate: 0.15
+  ga_crossover_rate: 0.80
+
+monitoring:
+  drift_threshold_ks: 0.05
+  drift_threshold_psi: 0.1
+  retrain_trigger_days: 7
+  mape_alert_threshold: 0.20
+
+analysis:
+  dsi_sentinel: 999
+  abc_threshold_a: 80
+  abc_threshold_b: 95
+  supply_risk_weights: [0.4, 0.4, 0.2]
+  shapiro_sample_limit: 500
+  risk_level_bins: [0, 0.3, 0.5, 0.7, 1.0]
+  risk_level_labels: ["Low", "Medium", "High", "Critical"]
+
+chart:
+  dpi: 150
+  bg_color: "#F0F2F6"
+  text_color: "#1B2A4A"
+  palette:
+    primary: "#2E86C1"
+    success: "#27AE60"
+    danger: "#E74C3C"
+    warning: "#F39C12"
+    purple: "#8E44AD"
+    teal: "#1ABC9C"
+    gray: "#95A5A6"
+
+server:
+  max_upload_mb: 10
+  rate_limit_per_minute: 30
+  cors_origins:
+    - "http://localhost:5173"
+    - "http://localhost:3000"

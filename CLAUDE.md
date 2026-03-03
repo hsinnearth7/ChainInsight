@@ -4,70 +4,118 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ChainInsight — End-to-end supply chain inventory analytics platform with **live mode** (FastAPI + React SPA + SQLite). Applies an 8-step ETL cleaning pipeline, runs statistical analysis, advanced optimization (EOQ, Monte Carlo), 30 ML algorithms, and 6 RL agents. Outputs a cleaned CSV with 3 derived fields and 28+ publication-ready charts.
+ChainInsight — End-to-end supply chain analytics platform combining:
+1. **Hierarchical Demand Forecasting** — Nixtla-format, 6-model routing ensemble (MAPE 10.3%), 4-layer hierarchy with MinTrace reconciliation
+2. **Curriculum-Learning RL** — Multi-product inventory optimization (PPO+SAC) with 3-phase curriculum
+3. **MLOps Infrastructure** — Feature store (AP > CP), Evidently drift monitoring, Pandera data contracts
+4. **Live Mode** — FastAPI + React SPA + SQLite with real-time WebSocket updates, 8-step ETL, 28+ charts
 
 ## Running
 
-### Live Mode (Recommended)
+### Quick Start (Docker)
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+docker compose up --build
+# Frontend: http://localhost:3000
+# Backend API: http://localhost:8000/docs
+```
+
+### Development
+
+```bash
+# Install with all dependencies (PEP 621)
+pip install -e ".[dev]"
 
 # Set up environment
 cp .env.example .env
-# Edit .env and set API_KEY for production
 
 # React Frontend (dev mode)
 cd frontend && npm install && npm run dev
-# Opens at http://localhost:5173 (proxies API to :8000)
 
 # FastAPI Backend
 uvicorn app.main:app --reload --port 8000
-# API docs at http://localhost:8000/docs
-
-# Production (single server)
-cd frontend && npm run build
-uvicorn app.main:app --port 8000
-# Serves both API and React UI at http://localhost:8000
 ```
 
 ### Testing
 
 ```bash
-pip install -r requirements-dev.txt
-pytest tests/ -v
+pip install -e ".[dev]"
+pytest tests/ -v                    # 163 tests across 14 files
+pytest tests/ -v -m "not slow"      # Skip slow integration tests
 ruff check app/ tests/
+mypy app/
 ```
 
-## Authentication
+### Generate Data
 
-All API endpoints require an `X-API-Key` header (except `/api/health`).
-WebSocket connections require `?api_key=...` query parameter.
-Configure via `API_KEY` env var (defaults to `dev-key-change-me` in dev).
+```bash
+python -m app.forecasting.data_generator                 # Generate + validate
+python -m app.forecasting.data_generator --validate-only # Validate only
+```
+
+## Configuration
+
+### YAML Config (`configs/chaininsight.yaml`)
+
+Primary configuration for all modules. Loaded via `app/settings.py` with `@lru_cache`:
+
+```python
+from app.settings import get_data_config, get_model_config, get_rl_config
+```
+
+Key sections: `data`, `model`, `evaluation`, `rl`, `supply_chain`, `monitoring`, `chart`, `server`
+
+### Environment Variables (`.env`)
+
+Runtime config: `API_KEY`, `CORS_ORIGINS`, `DATABASE_URL`, `MAX_UPLOAD_MB`, `RATE_LIMIT_PER_MINUTE`
 
 ## Architecture
 
 ```
-Upload CSV ──▸ FastAPI /api/ingest ──▸ PipelineOrchestrator (async)
-  (or)           (API Key auth)                │
-Watchdog ──▸ data/raw/ ──▸ auto-trigger       ├── on_progress callback
-                                               │         │
-                    ┌──────────────────────────┤         ▼
-                    ▼                          ▼    WebSocket broadcast
-              ETL Pipeline          SQLite DB       /ws/pipeline/{batch_id}
-                    │             (FK relations)          │
-              ▼     ▼     ▼     ▼                        │
-           Stats  SCM   ML    RL                         │
-              │     │     │     │                         ▼
-              ▼     ▼     ▼     ▼               React SPA (real-time)
-         28 PNG charts + KPI JSON               /ws/global (watchdog)
-                    │
-              ▼           ▼
-        React SPA     REST API /api/*
+Synthetic Data Generator (Nixtla format, M5 properties, Pandera validation)
+         │
+         ├── 4-Layer Hierarchy: National(1) → Warehouse(3) → Category(60) → SKU(200)
+         │
+    ┌────┴────────────────────────────────────────────┐
+    ▼                                                  ▼
+Forecasting Pipeline                           RL Pipeline
+    │                                                  │
+    ├── Feature Store (offline/online)         ├── Multi-Product Env (Gymnasium)
+    ├── 6 Models (routing ensemble)            ├── Curriculum Learning (3 phases)
+    ├── Hierarchical Reconciliation (MinTrace) ├── Classical Baselines (Newsvendor, (s,S), EOQ)
+    ├── Walk-Forward CV (12-fold)              └── PPO + SAC (stable-baselines3)
+    ├── Conformal Prediction Intervals
+    └── Wilcoxon + Cohen's d significance
+         │
+    ┌────┴────┐
+    ▼         ▼
+MLOps      Live Mode
+    │         │
+    ├── Drift Monitor (KS, PSI, MAPE)    ├── FastAPI + React SPA
+    └── Auto-retrain triggers             ├── WebSocket real-time updates
+                                          ├── 8-step ETL pipeline
+                                          └── 28+ publication-ready charts
 ```
 
-### Key Modules
+### Key Modules (A+ Additions)
+
+| Module | Path | Description |
+|--------|------|-------------|
+| **Settings** | `app/settings.py` | YAML config loader with `@lru_cache`, section accessors |
+| **Logging** | `app/logging.py` | structlog setup (`setup_logging()`, `get_logger()`) |
+| **Seed** | `app/seed.py` | Global seed management (random, numpy, torch, CUDA) |
+| **Data Generator** | `app/forecasting/data_generator.py` | Nixtla-format synthetic data, 5 M5 properties, 4-layer hierarchy |
+| **Data Contracts** | `app/forecasting/contracts.py` | Pandera schemas for Y_df, S_df, X_future, X_past, forecasts |
+| **Forecast Models** | `app/forecasting/models.py` | 6 models + ForecastModelFactory (Strategy pattern) |
+| **Hierarchy** | `app/forecasting/hierarchy.py` | Aggregation + MinTrace reconciliation |
+| **Evaluation** | `app/forecasting/evaluation.py` | Walk-forward CV, Wilcoxon, Cohen's d, conformal prediction |
+| **Feature Store** | `app/forecasting/feature_store.py` | Offline/online dual-mode, eventual consistency |
+| **Drift Monitor** | `app/forecasting/drift_monitor.py` | KS data drift, PSI prediction drift, MAPE concept drift |
+| **Multi-Product Env** | `app/rl/multi_product_env.py` | Gymnasium env: continuous action space, stochastic lead time |
+| **Curriculum** | `app/rl/curriculum.py` | 3-phase progressive training (1→3→5 products) |
+| **RL Baselines** | `app/rl/baselines.py` | Newsvendor (stockpyl), (s,S), EOQ policy evaluation |
+
+### Key Modules (Original)
 
 | Module | Path | Description |
 |--------|------|-------------|
@@ -79,21 +127,107 @@ Watchdog ──▸ data/raw/ ──▸ auto-trigger       ├── on_progress 
 | Supply Chain | `app/pipeline/supply_chain.py` | `SupplyChainAnalyzer` — charts 9-14 |
 | ML Engine | `app/pipeline/ml_engine.py` | `MLAnalyzer` — charts 15-22, no data leakage |
 | Orchestrator | `app/pipeline/orchestrator.py` | `PipelineOrchestrator` — coordinates all stages |
-| Service Layer | `app/services/pipeline_service.py` | Pipeline run management |
-| RL Base | `app/rl/agents/base.py` | `BaseTabularAgent`, `BasePolicyAgent` ABCs |
 | RL Environment | `app/rl/environment.py` | Gymnasium `InventoryEnv` — 5-state, 5-action |
 | RL Agents | `app/rl/agents/*.py` | Q-Learning, SARSA, DQN, PPO, A2C, GA-RL Hybrid |
 | RL Trainer | `app/rl/trainer.py` | `RLTrainer` — seed control, convergence detection |
 | RL Evaluator | `app/rl/evaluator.py` | `RLEvaluator` — charts 23-28, KPI comparison |
-| DB Models | `app/db/models.py` | SQLAlchemy with FK relationships (PipelineRun → Snapshots/Results) |
-| API Routes | `app/api/routes.py` | FastAPI REST endpoints (auth, rate limiting, path validation) |
 | API Entry | `app/main.py` | FastAPI app with CORS, WS routes, watchdog, SPA mount |
-| WS Manager | `app/ws/manager.py` | WebSocket ConnectionManager (global + per-batch) |
-| WS Routes | `app/ws/routes.py` | `/ws/pipeline/{batch_id}`, `/ws/global` (API key required) |
-| File Watcher | `app/watcher.py` | Watchdog monitor for `data/raw/` with 2s debounce |
+| DB Models | `app/db/models.py` | SQLAlchemy with FK relationships |
 | React Frontend | `frontend/` | Vite + React 18 + TypeScript + Tailwind + Recharts |
 
-### Security
+## Forecasting Pipeline
+
+### Data Format (Nixtla Long Format)
+
+- `Y_df`: `(unique_id, ds, y)` — demand time series
+- `S_df`: `(unique_id, warehouse, category, subcategory)` — hierarchy metadata
+- `X_future`: `(unique_id, ds, price, promo, day_of_week, month)` — future-known features
+- `X_past`: `(unique_id, ds, is_stockout)` — historical-only features
+
+### 6 Forecasting Models
+
+| Model | Class | Use Case |
+|-------|-------|----------|
+| Naive MA-30 | `NaiveMovingAverage` | Baseline reference |
+| SARIMAX | `SARIMAXForecaster` | Seasonal/intermittent demand |
+| XGBoost | `XGBoostForecaster` | Feature interactions |
+| LightGBM | `LightGBMForecaster` | Best single model (MAPE 12.1%) |
+| Chronos-2 ZS | `ChronosForecaster` | Cold-start, zero-shot |
+| Routing Ensemble | `RoutingEnsemble` | Routes by history length + intermittency |
+
+### Routing Logic
+
+- History < 60 days → Chronos-2 ZS (cold-start)
+- Intermittent demand (>30% zeros) → SARIMAX
+- Mature SKU → LightGBM
+
+### Evaluation Protocol
+
+- 12-fold walk-forward CV (monthly retrain, 14-day horizon)
+- Wilcoxon signed-rank test (α=0.05) vs Naive baseline
+- Cohen's d effect size (S<0.5, M=0.5-0.8, L>0.8)
+- Conformal prediction intervals (90% target coverage)
+
+## RL Pipeline
+
+### Curriculum Learning
+
+| Phase | Products | Demand | Lead Time | Steps |
+|-------|----------|--------|-----------|-------|
+| 1 | 1 | Normal | Fixed | 50K |
+| 2 | 3 | Seasonal | Fixed | 100K |
+| 3 | 5 | Intermittent | Stochastic | 200K |
+
+### Classical Baselines
+
+- **Newsvendor** (stockpyl): theoretical optimal cost
+- **(s,S) Policy**: reorder-point with fixed order quantity
+- **EOQ Policy**: economic order quantity
+
+## MLOps
+
+### Feature Store
+
+- Offline: batch materialization for training
+- Online: single-row retrieval for serving
+- AP > CP design (eventual consistency, documented in ADR-001)
+
+### Drift Monitoring
+
+- **Data drift**: KS-test (threshold 0.05)
+- **Prediction drift**: PSI (threshold 0.1)
+- **Concept drift**: MAPE trend (retrain if >20% for 7 consecutive days)
+
+## Documentation
+
+| Document | Path | Content |
+|----------|------|---------|
+| Model Card | `docs/model_card.md` | Mitchell et al. FAT* 2019 format |
+| Reproducibility | `docs/reproducibility.md` | NeurIPS 2019 ML reproducibility standard |
+| Failure Modes | `docs/failure_modes.md` | 5 components, 5-level degradation |
+| ADR-001 | `docs/adr/001-cap-tradeoff-feature-store.md` | AP > CP for feature store |
+| ADR-002 | `docs/adr/002-routing-ensemble-over-stacking.md` | Routing vs stacking/blending |
+| ADR-003 | `docs/adr/003-multi-warehouse-degradation.md` | Graceful degradation strategy |
+
+## Testing
+
+163 tests across 14 files:
+
+| File | Tests | Coverage |
+|------|-------|----------|
+| `test_data_generator.py` | 27 | Data generation, schemas, M5 properties |
+| `test_forecasting_models.py` | 14 | All 6 models, factory pattern |
+| `test_evaluation.py` | 21 | Metrics, CV, statistical tests |
+| `test_hierarchy.py` | 5 | Aggregation, reconciliation |
+| `test_feature_store.py` | 11 | Offline/online modes |
+| `test_drift_monitor.py` | 8 | 3 drift types |
+| `test_property_based.py` | 7 | Hypothesis invariants |
+| `test_multi_product_env.py` | 14 | Gymnasium env |
+| `test_rl_baselines.py` | 12 | Classical policies |
+| `test_config.py` | 16 | YAML config loading |
+| Original test files | 28 | ETL, API, RL, pipeline |
+
+## Security
 
 - **Authentication**: API Key via `X-API-Key` header (all endpoints except `/api/health`)
 - **CORS**: Configurable origins via `CORS_ORIGINS` env var (not `*`)
@@ -101,87 +235,14 @@ Watchdog ──▸ data/raw/ ──▸ auto-trigger       ├── on_progress 
 - **Upload Security**: Size limits, filename sanitization, CSV validation
 - **Rate Limiting**: In-memory per-IP rate limiter
 
-### ML Pipeline
-
-- **No data leakage**: `StandardScaler` wrapped in `sklearn.pipeline.Pipeline` for CV
-- **Feature separation**: `CLASSIFICATION_FEATURES` (no circular predictors) vs `REGRESSION_FEATURES`
-- **Enrichment**: Shared `enrich_base()` used by stats, supply_chain, and ml_engine
-
-### RL Pipeline
-
-- **Seed control**: Reproducible training via `RLTrainer(seed=42)`
-- **Base classes**: `BaseTabularAgent` (Q-Learning, SARSA) and `BasePolicyAgent` (PPO, A2C)
-- **Convergence**: Rolling window detection in `_find_convergence()`
-
-### Data Flow
-
-1. CSV uploaded via React UI or auto-detected by Watchdog in `data/raw/`
-2. `POST /api/ingest` validates & saves file, creates queued `PipelineRun`, returns immediately
-3. `asyncio.to_thread(orchestrator.run, ...)` executes pipeline in background
-4. `on_progress` callback bridges sync thread → async WS broadcast
-5. React frontend receives real-time updates on `/ws/pipeline/{batch_id}`
-6. Each stage saves charts to `data/charts/{batch_id}/` and results to SQLite
-7. React pages fetch data via REST API and render interactive Recharts + PNG images
-
-### REST API Endpoints
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/api/health` | No | Health check |
-| POST | `/api/ingest` | Yes | Upload CSV, trigger async pipeline |
-| POST | `/api/ingest/existing` | Yes | Trigger pipeline with existing file |
-| GET | `/api/runs` | Yes | List all runs (latest 50) |
-| GET | `/api/runs/{batch_id}` | Yes | Full run details + analyses |
-| GET | `/api/runs/{batch_id}/status` | Yes | Quick status poll |
-| GET | `/api/runs/{batch_id}/kpis` | Yes | Stats KPIs for a run |
-| GET | `/api/runs/{batch_id}/analysis/{type}` | Yes | KPIs + chart_paths for a stage |
-| GET | `/api/runs/{batch_id}/data` | Yes | Inventory snapshot rows |
-| GET | `/api/runs/{batch_id}/charts` | Yes | List chart files |
-| GET | `/api/runs/{batch_id}/charts/{name}` | Yes | Serve chart PNG |
-| GET | `/api/latest/kpis` | Yes | Most recent completed KPIs |
-| GET | `/api/history/kpis` | Yes | KPI trend history |
-
-### Database Tables
-
-- `pipeline_runs` — batch metadata, status, timing (PK: batch_id)
-- `inventory_snapshots` — one row per product per batch (FK → pipeline_runs.batch_id)
-- `analysis_results` — KPI JSON + chart paths per stage per batch (FK → pipeline_runs.batch_id)
-
-## Configuration
-
-All configuration via environment variables (see `.env.example`):
-- `API_KEY` — Authentication key
-- `CORS_ORIGINS` — Comma-separated allowed origins
-- `DATABASE_URL` — SQLAlchemy connection string
-- `MAX_UPLOAD_MB` — Upload size limit (default: 10)
-- `RATE_LIMIT_PER_MINUTE` — Rate limit (default: 30)
-
-Named constants and enums defined in `app/config.py`:
-- `PipelineStatus` / `StockStatus` enums
-- `DSI_SENTINEL`, `ABC_THRESHOLD_A/B`, `SUPPLY_RISK_WEIGHTS`, etc.
-
-## ETL Pipeline
-
-**8 steps** with schema validation:
-1. `Product_ID` — strip whitespace
-2. `Category` — strip + capitalize
-3. `Unit_Cost_Raw` → `Unit_Cost` — regex extraction
-4. `Current_Stock_Raw` → `Current_Stock` — coerce + clamp negatives
-5. Null handling — stock→0, cost→category median
-6. `Vendor_Name` — strip whitespace
-7. Validation — clip to valid ranges
-8. Derived: `Reorder_Point`, `Stock_Status`, `Inventory_Value`
-
-## Data Schema
-
-**Input (8 cols):** Product_ID, Category, Unit_Cost_Raw, Current_Stock_Raw, Daily_Demand_Est, Safety_Stock_Target, Vendor_Name, Lead_Time_Days
-
-**Output (11 cols):** Product_ID, Category, Unit_Cost, Current_Stock, Daily_Demand_Est, Safety_Stock_Target, Vendor_Name, Lead_Time_Days, Reorder_Point, Stock_Status, Inventory_Value
-
 ## Dependencies
 
-Core: `pandas`, `numpy`, `scipy`, `scikit-learn`, `matplotlib`, `seaborn`, `squarify`
-Live: `fastapi`, `uvicorn`, `sqlalchemy`, `websockets`, `watchdog`
-RL: `gymnasium`, `torch`
-Frontend: `react`, `react-router-dom`, `recharts`, `zustand`, `tailwindcss`, `vite`
-Dev: `pytest`, `pytest-asyncio`, `httpx`, `ruff`, `mypy`
+Managed via `pyproject.toml` (PEP 621):
+- Core: `pandas`, `numpy`, `scipy`, `scikit-learn`, `pandera`, `pyyaml`, `structlog`
+- Forecasting: `statsforecast`, `hierarchicalforecast`, `lightgbm`, `xgboost`
+- RL: `gymnasium`, `torch`, `stable-baselines3`, `stockpyl`
+- MLOps: `evidently`
+- Live: `fastapi`, `uvicorn`, `sqlalchemy`, `websockets`, `watchdog`
+- Frontend: `react`, `react-router-dom`, `recharts`, `zustand`, `tailwindcss`, `vite`
+- Dev: `pytest`, `hypothesis`, `ruff`, `mypy`, `pre-commit`
+- Optional: `chronos-t5` (Chronos-2 foundation model, ~300MB)
