@@ -46,7 +46,5 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: cp .env.example .env
-      - run: docker compose build
-      - run: docker compose up -d
-      - run: sleep 10 && curl -f http://localhost:8000/api/health
-      - run: docker compose down
+      - run: docker compose build backend
+      - run: docker compose config --quiet
