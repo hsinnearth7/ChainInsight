@@ -16,8 +16,9 @@ logger = logging.getLogger(__name__)
 
 # Guard import — MLflow is optional
 try:
-    import mlflow
     from mlflow.tracking import MlflowClient
+
+    import mlflow
 
     HAS_MLFLOW = True
 except ImportError:

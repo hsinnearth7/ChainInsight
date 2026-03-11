@@ -215,8 +215,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 body_bytes = await request.body()
                 if len(body_bytes) < 4096:  # Only log small bodies
                     request_body = body_bytes.decode("utf-8", errors="replace")
-            except Exception:
-                pass
+            except Exception:  # noqa: S110
+                pass  # Best-effort body capture; non-critical for audit
 
         # Process request
         response = await call_next(request)
