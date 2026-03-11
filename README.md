@@ -543,7 +543,7 @@ docker compose up -d
 
 # Monitoring (Prometheus + Grafana)
 docker compose -f monitoring/docker-compose.monitoring.yaml up -d
-# → Grafana: http://localhost:3000 (admin/admin)
+# → Grafana: http://localhost:3001 (admin/changeme)
 
 # MLflow Model Registry
 docker compose -f mlflow/docker-compose.mlflow.yaml up -d
@@ -551,7 +551,7 @@ docker compose -f mlflow/docker-compose.mlflow.yaml up -d
 
 # Airflow Pipeline Orchestration
 docker compose -f pipelines/docker-compose.airflow.yaml up -d
-# → Airflow: http://localhost:8080 (admin/admin)
+# → Airflow: http://localhost:8080 (admin/changeme)
 
 # Kubernetes (local)
 minikube start
