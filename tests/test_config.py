@@ -6,11 +6,13 @@ Covers: YAML loading, config accessors, defaults.
 import pytest
 
 from app.settings import (
+    get_capacity_config,
     get_data_config,
     get_eval_config,
     get_model_config,
     get_monitoring_config,
-    get_rl_config,
+    get_sensing_config,
+    get_sop_config,
     get_supply_chain_config,
     load_config,
 )
@@ -89,13 +91,47 @@ class TestMonitoringConfig:
         assert config.get("mape_alert_threshold") == 0.20
 
 
-class TestRLConfig:
-    def test_curriculum_phases(self):
-        config = get_rl_config()
-        curriculum = config.get("curriculum", [])
-        assert len(curriculum) == 3
-        assert curriculum[0]["n_products"] == 1
-        assert curriculum[2]["stochastic_lead_time"] is True
+class TestCapacityConfig:
+    def test_production_lines(self):
+        config = get_capacity_config()
+        assert config.get("production_lines") == 3
+
+    def test_utilization_target(self):
+        config = get_capacity_config()
+        assert config.get("utilization_target") == 0.85
+
+    def test_planning_horizon(self):
+        config = get_capacity_config()
+        assert config.get("planning_horizon_days") == 90
+
+
+class TestSensingConfig:
+    def test_signal_sources(self):
+        config = get_sensing_config()
+        assert config.get("signal_sources") == ["pos", "social", "weather"]
+
+    def test_spike_threshold(self):
+        config = get_sensing_config()
+        assert config.get("spike_threshold_sigma") == 2.5
+
+    def test_weights_sum_to_one(self):
+        config = get_sensing_config()
+        total = config["pos_weight"] + config["social_weight"] + config["weather_weight"]
+        assert abs(total - 1.0) < 1e-9
+
+
+class TestSOPConfig:
+    def test_default_scenarios(self):
+        config = get_sop_config()
+        assert config.get("default_scenarios") == ["baseline", "optimistic", "conservative"]
+
+    def test_target_fill_rate(self):
+        config = get_sop_config()
+        assert config.get("target_fill_rate") == 0.95
+
+    def test_time_bucket(self):
+        config = get_sop_config()
+        assert config.get("time_bucket") == "weekly"
 
 
 class TestSupplyChainConfig:
