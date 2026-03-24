@@ -19,6 +19,9 @@ export default function App() {
 
   // Apply dark mode class on mount
   useEffect(() => {
+    if (typeof document === 'undefined') {
+      return;
+    }
     if (darkMode) {
       document.documentElement.classList.add('dark');
     } else {

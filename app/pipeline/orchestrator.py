@@ -71,9 +71,11 @@ class PipelineOrchestrator:
         all_results = {"batch_id": batch_id, "stages": {}}
         charts_dir = CHARTS_DIR / batch_id
         charts_dir.mkdir(parents=True, exist_ok=True)
+        current_stage = "etl"
 
         try:
             # Stage 1: ETL
+            current_stage = "etl"
             self.on_progress("etl", "running", {})
             etl = ETLPipeline()
             clean_path = CLEAN_DIR / f"{batch_id}_clean.csv"
@@ -85,6 +87,7 @@ class PipelineOrchestrator:
             self.on_progress("etl", "completed", etl_stats)
 
             # Stage 2: Statistical Analysis
+            current_stage = "stats"
             self.on_progress("stats", "running", {})
             stats_analyzer = StatisticalAnalyzer(output_dir=str(charts_dir))
             stats_results = stats_analyzer.run_all(df_clean)
@@ -96,6 +99,7 @@ class PipelineOrchestrator:
             self.on_progress("stats", "completed", stats_results)
 
             # Stage 3: Supply Chain Optimization
+            current_stage = "supply_chain"
             self.on_progress("supply_chain", "running", {})
             sc_analyzer = SupplyChainAnalyzer(output_dir=str(charts_dir))
             sc_results = sc_analyzer.run_all(df_clean)
@@ -107,6 +111,7 @@ class PipelineOrchestrator:
             self.on_progress("supply_chain", "completed", sc_results)
 
             # Stage 4: ML Analysis
+            current_stage = "ml"
             self.on_progress("ml", "running", {})
             ml_analyzer = MLAnalyzer(output_dir=str(charts_dir))
             ml_results = ml_analyzer.run_all(df_clean)
@@ -115,6 +120,7 @@ class PipelineOrchestrator:
             self.on_progress("ml", "completed", ml_results)
 
             # Stage 5: Capacity Planning
+            current_stage = "capacity"
             self.on_progress("capacity", "running", {})
             cap_planner = CapacityPlanner()
             cap_demand = pd.DataFrame({
@@ -146,6 +152,7 @@ class PipelineOrchestrator:
             self.on_progress("capacity", "completed", cap_kpis)
 
             # Stage 6: Demand Sensing
+            current_stage = "sensing"
             self.on_progress("sensing", "running", {})
             sensor = SignalProcessor()
             product_ids = df_clean["Product_ID"].unique().tolist() if "Product_ID" in df_clean.columns else []
@@ -176,6 +183,7 @@ class PipelineOrchestrator:
             self.on_progress("sensing", "completed", sense_kpis)
 
             # Stage 7: S&OP Simulation
+            current_stage = "sop"
             self.on_progress("sop", "running", {})
             sop_sim = SOPSimulator()
             daily_cap = sum(
@@ -223,7 +231,7 @@ class PipelineOrchestrator:
             all_results["status"] = "failed"
             all_results["error"] = str(e)
             logger.exception("Pipeline failed — batch_id=%s", batch_id)
-            self.on_progress("error", "failed", {"error": str(e)})
+            self.on_progress(current_stage, "failed", {"error": str(e)})
         finally:
             db.close()
 

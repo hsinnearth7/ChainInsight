@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { auth } from '../api/client';
 import LoadingSpinner from './LoadingSpinner';
 
 interface ChartImageProps {
@@ -10,6 +11,46 @@ interface ChartImageProps {
 export default function ChartImage({ src, alt, className = '' }: ChartImageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    let nextObjectUrl: string | null = null;
+
+    async function loadImage() {
+      setLoading(true);
+      setError(false);
+      setObjectUrl(null);
+
+      try {
+        const res = await fetch(src, { headers: auth.buildHeaders() });
+        if (!res.ok) {
+          throw new Error(`Chart request failed: ${res.status}`);
+        }
+        const blob = await res.blob();
+        nextObjectUrl = URL.createObjectURL(blob);
+        if (!active) {
+          URL.revokeObjectURL(nextObjectUrl);
+          return;
+        }
+        setObjectUrl(nextObjectUrl);
+      } catch {
+        if (active) {
+          setError(true);
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadImage();
+
+    return () => {
+      active = false;
+      if (nextObjectUrl) {
+        URL.revokeObjectURL(nextObjectUrl);
+      }
+    };
+  }, [src]);
 
   return (
     <div className={`relative bg-white dark:bg-ci-dark-card rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden ${className}`}>
@@ -24,7 +65,7 @@ export default function ChartImage({ src, alt, className = '' }: ChartImageProps
         </div>
       ) : (
         <img
-          src={src}
+          src={objectUrl ?? ''}
           alt={alt}
           className={`w-full h-auto transition-opacity ${loading ? 'opacity-0' : 'opacity-100'}`}
           onLoad={() => setLoading(false)}

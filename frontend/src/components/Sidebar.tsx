@@ -4,15 +4,15 @@ import { useTranslation } from '../i18n/useTranslation';
 import type { TranslationKey } from '../i18n/translations';
 
 const navItems: { to: string; labelKey: TranslationKey; icon: string }[] = [
-  { to: '/', labelKey: 'nav.dashboard', icon: '📊' },
-  { to: '/upload', labelKey: 'nav.upload', icon: '📤' },
-  { to: '/stats', labelKey: 'nav.stats', icon: '📈' },
-  { to: '/supply-chain', labelKey: 'nav.supplyChain', icon: '🔗' },
-  { to: '/ml', labelKey: 'nav.ml', icon: '🤖' },
-  { to: '/capacity', labelKey: 'nav.capacity', icon: '🏭' },
-  { to: '/sensing', labelKey: 'nav.sensing', icon: '📡' },
-  { to: '/sop', labelKey: 'nav.sop', icon: '📋' },
-  { to: '/history', labelKey: 'nav.history', icon: '📋' },
+  { to: '/', labelKey: 'nav.dashboard', icon: 'DB' },
+  { to: '/upload', labelKey: 'nav.upload', icon: 'UP' },
+  { to: '/stats', labelKey: 'nav.stats', icon: 'ST' },
+  { to: '/supply-chain', labelKey: 'nav.supplyChain', icon: 'SC' },
+  { to: '/ml', labelKey: 'nav.ml', icon: 'ML' },
+  { to: '/capacity', labelKey: 'nav.capacity', icon: 'CP' },
+  { to: '/sensing', labelKey: 'nav.sensing', icon: 'SN' },
+  { to: '/sop', labelKey: 'nav.sop', icon: 'SO' },
+  { to: '/history', labelKey: 'nav.history', icon: 'HS' },
 ];
 
 export default function Sidebar() {
@@ -40,7 +40,7 @@ export default function Sidebar() {
               }`
             }
           >
-            <span>{item.icon}</span>
+            <span className="inline-flex w-6 text-xs font-semibold">{item.icon}</span>
             {t(item.labelKey)}
           </NavLink>
         ))}

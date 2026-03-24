@@ -17,9 +17,6 @@ const SC_CHARTS = [
 ];
 
 const ORDERING_COST = 50;
-const HOLDING_RATE = 0.25;
-const COLORS = ['#2E86C1', '#27AE60', '#E74C3C', '#F39C12', '#8E44AD'];
-
 export default function SupplyChainPage() {
   const [batchId, setBatchId] = useState<string | null>(null);
   const [inventory, setInventory] = useState<InventoryRow[]>([]);
@@ -56,8 +53,10 @@ export default function SupplyChainPage() {
       const data = await api.getInventoryData(bid);
       setInventory(data);
       if (data.length > 0) {
-        setMcDemandMean(Math.round(data.reduce((a, r) => a + r.daily_demand_est, 0) / data.length));
-        setMcDemandStd(Math.round(Math.sqrt(data.reduce((a, r) => a + (r.daily_demand_est - mcDemandMean) ** 2, 0) / data.length)));
+        const mean = data.reduce((a, r) => a + r.daily_demand_est, 0) / data.length;
+        const variance = data.reduce((a, r) => a + (r.daily_demand_est - mean) ** 2, 0) / data.length;
+        setMcDemandMean(Math.round(mean));
+        setMcDemandStd(Math.round(Math.sqrt(variance)));
       }
     } catch {
       // no data

@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router as api_router
 from app.api.routes import trigger_pipeline_from_path
-from app.config import BASE_DIR, CHARTS_DIR, CORS_ORIGINS, RAW_DIR
+from app.config import BASE_DIR, CORS_ORIGINS, RAW_DIR
 from app.db.models import init_db
 from app.ws.routes import ws_router
 
@@ -95,8 +95,6 @@ app.include_router(ws_router)
 # Register API routes
 app.include_router(api_router)
 
-# Mount charts as static files
-app.mount("/charts", StaticFiles(directory=str(CHARTS_DIR)), name="charts")
 
 # Mount React SPA (production build) as catch-all — must be last
 _frontend_dist = BASE_DIR / "frontend" / "dist"

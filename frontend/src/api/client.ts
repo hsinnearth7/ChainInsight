@@ -1,9 +1,43 @@
 import type { PipelineRun, AnalysisResult, RunStatus, KPIData, InventoryRow, ChartInfo, IngestResponse } from '../types/api';
 
 const BASE = '/api';
+const isBrowser = typeof window !== 'undefined';
 
-async function fetchJSON<T>(url: string): Promise<T> {
-  const res = await fetch(url);
+function getApiKey(): string {
+  const envKey = import.meta.env.VITE_API_KEY?.trim();
+  if (envKey) return envKey;
+
+  const explicitDevKey = import.meta.env.VITE_DEV_API_KEY?.trim();
+
+  if (isBrowser) {
+    const storedKey = window.localStorage.getItem('ci-api-key')?.trim();
+    if (storedKey) return storedKey;
+
+    if (
+      explicitDevKey &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ) {
+      return explicitDevKey;
+    }
+  }
+
+  return '';
+}
+
+function buildHeaders(headers?: HeadersInit): Headers {
+  const merged = new Headers(headers);
+  const apiKey = getApiKey();
+  if (apiKey) {
+    merged.set('X-API-Key', apiKey);
+  }
+  return merged;
+}
+
+async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    ...init,
+    headers: buildHeaders(init?.headers),
+  });
   if (!res.ok) {
     const body = await res.text();
     throw new Error(`${res.status}: ${body}`);
@@ -16,21 +50,19 @@ export const api = {
   async ingest(file: File): Promise<IngestResponse> {
     const form = new FormData();
     form.append('file', file);
-    const res = await fetch(`${BASE}/ingest`, { method: 'POST', body: form });
+    const res = await fetch(`${BASE}/ingest`, {
+      method: 'POST',
+      body: form,
+      headers: buildHeaders(),
+    });
     if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
     return res.json();
   },
 
-  async ingestExisting(filename: string): Promise<IngestResponse> {
-    // Upload existing file from data/raw by triggering a fetch to a known path
-    const res = await fetch(`${BASE}/ingest`, {
+  async ingestExisting(): Promise<IngestResponse> {
+    const res = await fetch(`${BASE}/ingest/existing`, {
       method: 'POST',
-      body: (() => {
-        const form = new FormData();
-        // We'll use a small hack: create a blob with the filename
-        form.append('file', new Blob(['']), filename);
-        return form;
-      })(),
+      headers: buildHeaders(),
     });
     if (!res.ok) throw new Error(`Failed: ${res.status}`);
     return res.json();
@@ -58,4 +90,9 @@ export const api = {
 
   // Data
   getInventoryData: (batchId: string) => fetchJSON<InventoryRow[]>(`${BASE}/runs/${batchId}/data`),
+};
+
+export const auth = {
+  getApiKey,
+  buildHeaders,
 };

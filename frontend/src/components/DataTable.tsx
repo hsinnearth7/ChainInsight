@@ -8,7 +8,13 @@ interface DataTableProps {
   maxHeight?: string;
 }
 
-export default function DataTable({ data, columns, title, enableCSVDownload = false, maxHeight = '400px' }: DataTableProps) {
+export default function DataTable({
+  data,
+  columns,
+  title,
+  enableCSVDownload = false,
+  maxHeight = '400px',
+}: DataTableProps) {
   const [sortCol, setSortCol] = useState<string | null>(null);
   const [sortAsc, setSortAsc] = useState(true);
 
@@ -22,7 +28,10 @@ export default function DataTable({ data, columns, title, enableCSVDownload = fa
       if (va === vb) return 0;
       if (va == null) return 1;
       if (vb == null) return -1;
-      const cmp = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb));
+      const cmp =
+        typeof va === 'number' && typeof vb === 'number'
+          ? va - vb
+          : String(va).localeCompare(String(vb));
       return sortAsc ? cmp : -cmp;
     });
   }, [data, sortCol, sortAsc]);
@@ -99,7 +108,7 @@ export default function DataTable({ data, columns, title, enableCSVDownload = fa
 }
 
 function formatCell(val: unknown): string {
-  if (val == null) return '—';
+  if (val == null) return '--';
   if (typeof val === 'number') return val % 1 === 0 ? String(val) : val.toFixed(2);
   return String(val);
 }

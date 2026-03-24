@@ -50,31 +50,30 @@ export default function SOPPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KPICard
           title={t('sop.fillRate')}
-          value={typeof sopData.fill_rate === 'number' ? `${(sopData.fill_rate as number * 100).toFixed(1)}%` : '—'}
-          icon="📦"
+          value={typeof sopData.fill_rate === 'number' ? `${((sopData.fill_rate as number) * 100).toFixed(1)}%` : '--'}
+          icon="FIL"
           color="ci-success"
         />
         <KPICard
           title={t('sop.scenarios')}
           value={String(scenarios.length || 3)}
-          icon="📋"
+          icon="SCN"
           color="ci-primary"
         />
         <KPICard
           title={t('capacity.utilization')}
-          value={typeof sopData.avg_utilization === 'number' ? `${(sopData.avg_utilization as number * 100).toFixed(1)}%` : '—'}
-          icon="🏭"
+          value={typeof sopData.avg_utilization === 'number' ? `${((sopData.avg_utilization as number) * 100).toFixed(1)}%` : '--'}
+          icon="UTL"
           color="ci-teal"
         />
         <KPICard
           title={t('sop.demandSupplyBalance')}
-          value={typeof sopData.balance_pct === 'number' ? `${(sopData.balance_pct as number * 100).toFixed(1)}%` : '—'}
-          icon="⚖️"
+          value={typeof sopData.balance_pct === 'number' ? `${((sopData.balance_pct as number) * 100).toFixed(1)}%` : '--'}
+          icon="BAL"
           color="ci-purple"
         />
       </div>
 
-      {/* Scenario Comparison Table */}
       {scenarios.length > 0 && (
         <DataTable
           data={scenarios}

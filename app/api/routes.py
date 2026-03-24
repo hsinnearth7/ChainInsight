@@ -8,7 +8,7 @@ import re
 import time
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -24,6 +24,9 @@ from app.ws.manager import manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["pipeline"], dependencies=[Depends(require_api_key)])
+WATCHDOG_STAGING_DIR = RAW_DIR.parent / "watchdog_staging"
+WATCHDOG_STAGING_DIR.mkdir(parents=True, exist_ok=True)
+WATCHDOG_STAGING_RETENTION = timedelta(hours=24)
 
 
 # ---------- Helpers ----------
@@ -47,6 +50,96 @@ def _safe_path(base: Path, *parts: str) -> Path:
     if not resolved.is_relative_to(base.resolve()):
         raise HTTPException(403, "Access denied")
     return resolved
+
+
+def _validate_csv_bytes(contents: bytes) -> None:
+    """Validate uploaded CSV bytes for size and basic schema sanity."""
+    if len(contents) > MAX_UPLOAD_SIZE:
+        raise HTTPException(413, f"File too large. Max {MAX_UPLOAD_SIZE // 1024 // 1024}MB")
+
+    try:
+        test_df = pd.read_csv(io.BytesIO(contents), nrows=1)
+        if test_df.empty or len(test_df.columns) < 2:
+            raise ValueError("CSV must have at least 2 columns and 1 data row")
+    except Exception as exc:
+        raise HTTPException(400, "Invalid CSV file") from exc
+
+
+async def _wait_for_stable_csv(path: Path, checks: int = 3, interval_seconds: float = 1.0) -> bytes:
+    """Wait until a CSV file stops changing, then return a validated snapshot."""
+    if path.suffix.lower() != ".csv":
+        raise HTTPException(400, "Only CSV files are accepted")
+
+    stable_observations = 0
+    previous_signature: tuple[int, int] | None = None
+
+    for _ in range(checks + 2):
+        if not path.exists() or not path.is_file():
+            raise HTTPException(404, "CSV file not found")
+
+        stat = path.stat()
+        if stat.st_size == 0:
+            stable_observations = 0
+            previous_signature = None
+            await asyncio.sleep(interval_seconds)
+            continue
+
+        signature = (stat.st_size, stat.st_mtime_ns)
+        if signature == previous_signature:
+            stable_observations += 1
+        else:
+            stable_observations = 1
+            previous_signature = signature
+
+        if stable_observations >= checks:
+            contents = await asyncio.to_thread(path.read_bytes)
+            final_stat = path.stat()
+            if (final_stat.st_size, final_stat.st_mtime_ns) != signature:
+                stable_observations = 0
+                previous_signature = None
+                await asyncio.sleep(interval_seconds)
+                continue
+            _validate_csv_bytes(contents)
+            return contents
+
+        await asyncio.sleep(interval_seconds)
+
+    raise HTTPException(400, f"CSV file {path.name} is still being written or is unstable")
+
+
+def _prune_watchdog_staging(now: datetime | None = None) -> None:
+    """Delete expired watchdog staging files to prevent unbounded growth."""
+    cutoff = (now or datetime.now(timezone.utc)) - WATCHDOG_STAGING_RETENTION
+    for staged_file in WATCHDOG_STAGING_DIR.glob("*"):
+        try:
+            if not staged_file.is_file():
+                continue
+            modified_at = datetime.fromtimestamp(staged_file.stat().st_mtime, tz=timezone.utc)
+            if modified_at < cutoff:
+                staged_file.unlink()
+        except FileNotFoundError:
+            continue
+        except Exception:
+            logger.warning("Failed to prune staged watchdog file %s", staged_file, exc_info=True)
+
+
+async def _run_pipeline_job(
+    source_path: Path,
+    batch_id: str,
+    progress_cb,
+    cleanup_path: Path | None = None,
+) -> None:
+    """Run the pipeline in a worker thread and clean up any staged snapshot afterwards."""
+    orchestrator = PipelineOrchestrator(on_progress=progress_cb)
+    try:
+        await asyncio.to_thread(orchestrator.run, str(source_path), batch_id)
+    finally:
+        if cleanup_path is not None:
+            try:
+                cleanup_path.unlink(missing_ok=True)
+            except Exception:
+                logger.warning("Failed to remove staged watchdog file %s", cleanup_path, exc_info=True)
+        await asyncio.to_thread(_prune_watchdog_staging)
 
 
 # ---------- Rate limiter ----------
@@ -124,21 +217,12 @@ async def ingest_csv(request: Request, file: UploadFile = File(...)):
     """Upload a CSV file and trigger the full analysis pipeline (non-blocking)."""
     _check_rate_limit(request)
 
-    if not file.filename or not file.filename.endswith(".csv"):
+    if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(400, "Only CSV files are accepted")
 
     # Read and validate size
     contents = await file.read()
-    if len(contents) > MAX_UPLOAD_SIZE:
-        raise HTTPException(413, f"File too large. Max {MAX_UPLOAD_SIZE // 1024 // 1024}MB")
-
-    # Validate it's actually CSV with data
-    try:
-        test_df = pd.read_csv(io.BytesIO(contents), nrows=1)
-        if test_df.empty or len(test_df.columns) < 2:
-            raise ValueError("CSV must have at least 2 columns and 1 data row")
-    except Exception as exc:
-        raise HTTPException(400, "Invalid CSV file") from exc
+    _validate_csv_bytes(contents)
 
     # Save with sanitized filename
     safe_name = _safe_filename(file.filename)
@@ -180,9 +264,12 @@ async def ingest_existing(request: Request):
     candidates = list(RAW_DIR.glob("*Dirty*.csv")) + list(RAW_DIR.glob("*dirty*.csv"))
     if not candidates:
         raise HTTPException(404, "No existing dirty CSV found in data/raw/")
-    raw_path = candidates[0]
-    if raw_path.stat().st_size == 0:
-        raise HTTPException(400, f"File {raw_path.name} is empty (0 bytes)")
+    raw_path = sorted(
+        candidates,
+        key=lambda path: (path.stat().st_mtime, path.name.lower()),
+        reverse=True,
+    )[0]
+    contents = await _wait_for_stable_csv(raw_path, checks=2, interval_seconds=0.1)
     logger.info("Using existing file: %s", raw_path.name)
 
     batch_id = f"batch_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
@@ -196,9 +283,10 @@ async def ingest_existing(request: Request):
 
     loop = asyncio.get_running_loop()
     progress_cb = _make_ws_progress_callback(batch_id, loop)
-    orchestrator = PipelineOrchestrator(on_progress=progress_cb)
+    staged_path = WATCHDOG_STAGING_DIR / _safe_filename(raw_path.name)
+    await asyncio.to_thread(staged_path.write_bytes, contents)
     asyncio.create_task(
-        asyncio.to_thread(orchestrator.run, str(raw_path), batch_id)
+        _run_pipeline_job(staged_path, batch_id, progress_cb, cleanup_path=staged_path)
     )
     return {"batch_id": batch_id, "status": "queued", "message": "Pipeline started with existing file."}
 
@@ -207,11 +295,18 @@ async def ingest_existing(request: Request):
 
 async def trigger_pipeline_from_path(file_path: str):
     """Trigger a pipeline run from a file path (called by watchdog)."""
+    source_path = _safe_path(RAW_DIR, Path(file_path).name)
+    contents = await _wait_for_stable_csv(source_path)
+    await asyncio.to_thread(_prune_watchdog_staging)
+    original_name = source_path.name
+    staged_name = _safe_filename(original_name)
+    staged_path = WATCHDOG_STAGING_DIR / staged_name
+    await asyncio.to_thread(staged_path.write_bytes, contents)
+
     batch_id = f"batch_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
-    safe_name = Path(file_path).name
     db = SessionLocal()
     try:
-        run_record = PipelineRun(batch_id=batch_id, status="queued", source_file=safe_name)
+        run_record = PipelineRun(batch_id=batch_id, status="queued", source_file=original_name)
         db.add(run_record)
         db.commit()
     finally:
@@ -221,15 +316,14 @@ async def trigger_pipeline_from_path(file_path: str):
         manager.build_message(
             msg_type="watchdog:detected",
             batch_id=batch_id,
-            data={"file": safe_name},
+            data={"file": original_name},
         )
     )
 
     loop = asyncio.get_running_loop()
     progress_cb = _make_ws_progress_callback(batch_id, loop)
-    orchestrator = PipelineOrchestrator(on_progress=progress_cb)
     asyncio.create_task(
-        asyncio.to_thread(orchestrator.run, file_path, batch_id)
+        _run_pipeline_job(staged_path, batch_id, progress_cb, cleanup_path=staged_path)
     )
     return batch_id
 

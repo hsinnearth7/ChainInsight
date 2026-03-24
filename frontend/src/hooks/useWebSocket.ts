@@ -1,5 +1,8 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import type { WSMessage } from '../types/websocket';
+import { auth } from '../api/client';
+
+const isBrowser = typeof window !== 'undefined';
 
 interface UseWebSocketOptions {
   url: string;
@@ -16,10 +19,14 @@ export function useWebSocket({ url, onMessage, reconnectInterval = 3000, enabled
   onMessageRef.current = onMessage;
 
   const connect = useCallback(() => {
-    if (!enabled) return;
+    if (!enabled || !isBrowser || typeof WebSocket === 'undefined') return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = url.startsWith('ws') ? url : `${protocol}//${window.location.host}${url}`;
+    const wsUrlBase = url.startsWith('ws') ? url : `${protocol}//${window.location.host}${url}`;
+    const apiKey = auth.getApiKey();
+    const wsUrl = apiKey
+      ? `${wsUrlBase}${wsUrlBase.includes('?') ? '&' : '?'}api_key=${encodeURIComponent(apiKey)}`
+      : wsUrlBase;
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
@@ -37,11 +44,12 @@ export function useWebSocket({ url, onMessage, reconnectInterval = 3000, enabled
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       setConnected(false);
       wsRef.current = null;
-      // Auto-reconnect
-      reconnectTimer.current = setTimeout(connect, reconnectInterval);
+      if (event.code !== 4003 && enabled) {
+        reconnectTimer.current = setTimeout(connect, reconnectInterval);
+      }
     };
 
     ws.onerror = () => {

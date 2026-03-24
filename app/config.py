@@ -19,7 +19,9 @@ for d in [RAW_DIR, CLEAN_DIR, CHARTS_DIR]:
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'chaininsight.db'}")
 
 # Authentication
-API_KEY = os.getenv("API_KEY", "dev-key-change-me")
+API_KEY = os.getenv("API_KEY")
+if not API_KEY:
+    raise RuntimeError("API_KEY environment variable must be set")
 
 # CORS
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")

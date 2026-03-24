@@ -49,19 +49,19 @@ export default function SensingPage() {
         <KPICard
           title={t('sensing.signals')}
           value={typeof senseData.active_signals === 'number' ? String(senseData.active_signals) : '0'}
-          icon="📡"
+          icon="SIG"
           color="ci-primary"
         />
         <KPICard
           title={t('sensing.adjustment')}
-          value={typeof senseData.avg_adjustment_pct === 'number' ? `${(senseData.avg_adjustment_pct as number).toFixed(1)}%` : '—'}
-          icon="📈"
+          value={typeof senseData.avg_adjustment_pct === 'number' ? `${(senseData.avg_adjustment_pct as number).toFixed(1)}%` : '--'}
+          icon="ADJ"
           color="ci-teal"
         />
         <KPICard
           title={t('sensing.spikes')}
           value={typeof senseData.spike_count === 'number' ? String(senseData.spike_count) : '0'}
-          icon="🔔"
+          icon="SPK"
           color="ci-warning"
         />
       </div>

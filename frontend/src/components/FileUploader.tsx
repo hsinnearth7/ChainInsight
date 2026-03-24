@@ -37,7 +37,10 @@ export default function FileUploader({ onFileSelected, disabled = false }: FileU
       className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer
         ${dragOver ? 'border-ci-primary bg-ci-primary/5' : 'border-gray-300 dark:border-gray-600 hover:border-ci-primary/50'}
         ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
       onDragLeave={() => setDragOver(false)}
       onDrop={handleDrop}
       onClick={() => !disabled && inputRef.current?.click()}
@@ -50,7 +53,7 @@ export default function FileUploader({ onFileSelected, disabled = false }: FileU
         onChange={handleChange}
         disabled={disabled}
       />
-      <div className="text-4xl mb-3">📁</div>
+      <div className="text-4xl mb-3 font-semibold tracking-wide">CSV</div>
       <p className="text-sm font-medium">{t('upload.dragDrop')}</p>
       <p className="text-xs text-ci-gray mt-1">{t('upload.browse')}</p>
     </div>

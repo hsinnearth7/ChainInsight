@@ -48,25 +48,24 @@ export default function CapacityPage() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <KPICard
           title={t('capacity.utilization')}
-          value={typeof capData.avg_utilization === 'number' ? `${(capData.avg_utilization as number * 100).toFixed(1)}%` : '—'}
-          icon="🏭"
+          value={typeof capData.avg_utilization === 'number' ? `${((capData.avg_utilization as number) * 100).toFixed(1)}%` : '--'}
+          icon="UTL"
           color="ci-primary"
         />
         <KPICard
           title={t('capacity.bottlenecks')}
           value={typeof capData.bottleneck_count === 'number' ? String(capData.bottleneck_count) : '0'}
-          icon="⚠️"
+          icon="BOT"
           color="ci-warning"
         />
         <KPICard
           title={t('capacity.demandVsCapacity')}
-          value={typeof capData.demand_coverage === 'number' ? `${(capData.demand_coverage as number * 100).toFixed(1)}%` : '—'}
-          icon="📊"
+          value={typeof capData.demand_coverage === 'number' ? `${((capData.demand_coverage as number) * 100).toFixed(1)}%` : '--'}
+          icon="COV"
           color="ci-success"
         />
       </div>
 
-      {/* Pipeline Charts */}
       {batchId && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <ChartImage src={api.getChartURL(batchId, 'chart_capacity_utilization.png')} alt="Capacity Utilization" />

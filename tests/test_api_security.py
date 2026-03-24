@@ -1,5 +1,21 @@
 """Security tests: path traversal, auth, CORS, upload limits."""
 
+import asyncio
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import pytest
+from fastapi import HTTPException
+
+from app.api.routes import (
+    WATCHDOG_STAGING_DIR,
+    _prune_watchdog_staging,
+    _safe_filename,
+    _wait_for_stable_csv,
+)
+from app.config import RAW_DIR
+from app.db.models import PipelineRun, SessionLocal
+
 
 
 class TestAuthentication:
@@ -25,6 +41,11 @@ class TestAuthentication:
         resp = client.get("/api/health")
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
+
+    def test_static_charts_not_public(self, client):
+        """Chart files should no longer be exposed through a public static mount."""
+        resp = client.get("/charts/example/chart.png")
+        assert resp.status_code == 404
 
 
 class TestPathTraversal:
@@ -96,3 +117,121 @@ class TestUploadSecurity:
         data = resp.json()
         assert "batch_id" in data
         assert data["status"] == "queued"
+
+    def test_upload_uppercase_csv_extension_accepted(self, client, auth_headers, sample_csv_content):
+        """Verify valid CSV uploads are accepted regardless of extension casing."""
+        resp = client.post(
+            "/api/ingest",
+            headers=auth_headers,
+            files={"file": ("DATA.CSV", sample_csv_content.encode(), "text/csv")},
+        )
+        assert resp.status_code == 200
+
+    def test_ingest_existing_invalid_csv_rejected(self, client, auth_headers):
+        """Verify existing-file ingest enforces the same CSV validation rules."""
+        invalid_path = RAW_DIR / "SecurityDirty.csv"
+        invalid_path.write_bytes(b"\x00\x01\x02binary")
+        try:
+            resp = client.post("/api/ingest/existing", headers=auth_headers)
+        finally:
+            if invalid_path.exists():
+                invalid_path.unlink()
+        assert resp.status_code == 400
+
+
+class TestWatchdogValidation:
+    """Verify watchdog-triggered ingests use the same CSV validation rules."""
+
+    def test_wait_for_stable_csv_rejects_invalid_content(self):
+        csv_path = Path("watchdog_invalid_test.csv")
+        csv_path.write_bytes(b"\x00\x01\x02binary")
+        try:
+            with pytest.raises(HTTPException) as exc_info:
+                asyncio.run(_wait_for_stable_csv(csv_path, checks=2, interval_seconds=0.01))
+        finally:
+            if csv_path.exists():
+                csv_path.unlink()
+        assert exc_info.value.status_code == 400
+
+    def test_wait_for_stable_csv_rejects_non_csv_extension(self):
+        txt_path = Path("watchdog_invalid_test.txt")
+        txt_path.write_text("a,b\n1,2\n", encoding="utf-8")
+        try:
+            with pytest.raises(HTTPException) as exc_info:
+                asyncio.run(_wait_for_stable_csv(txt_path, checks=2, interval_seconds=0.01))
+        finally:
+            if txt_path.exists():
+                txt_path.unlink()
+        assert exc_info.value.status_code == 400
+
+    def test_prune_watchdog_staging_removes_expired_files(self):
+        old_path = WATCHDOG_STAGING_DIR / "old-stage.csv"
+        new_path = WATCHDOG_STAGING_DIR / "new-stage.csv"
+        old_path.write_text("a,b\n1,2\n", encoding="utf-8")
+        new_path.write_text("a,b\n1,2\n", encoding="utf-8")
+        try:
+            stale_time = (datetime.now(timezone.utc) - timedelta(days=2)).timestamp()
+            old_path.touch()
+            new_path.touch()
+            import os
+            os.utime(old_path, (stale_time, stale_time))
+
+            _prune_watchdog_staging()
+
+            assert not old_path.exists()
+            assert new_path.exists()
+        finally:
+            if old_path.exists():
+                old_path.unlink()
+            if new_path.exists():
+                new_path.unlink()
+
+    def test_trigger_pipeline_from_path_preserves_original_filename(self, monkeypatch, sample_csv_content):
+        from app.api import routes
+
+        raw_path = RAW_DIR / "OriginalDirty.csv"
+        raw_path.write_text(sample_csv_content, encoding="utf-8")
+        captured: dict[str, object] = {}
+
+        async def fake_run_pipeline_job(source_path, batch_id, progress_cb, cleanup_path=None):
+            captured["source_path"] = source_path
+            captured["cleanup_path"] = cleanup_path
+
+        async def fake_broadcast_global(message):
+            captured["message"] = message
+
+        monkeypatch.setattr(routes, "_run_pipeline_job", fake_run_pipeline_job)
+        monkeypatch.setattr(routes.manager, "broadcast_global", fake_broadcast_global)
+
+        try:
+            batch_id = asyncio.run(routes.trigger_pipeline_from_path(str(raw_path)))
+            asyncio.run(asyncio.sleep(0))
+
+            db = SessionLocal()
+            try:
+                run = db.query(PipelineRun).filter(PipelineRun.batch_id == batch_id).first()
+                assert run is not None
+                assert run.source_file == "OriginalDirty.csv"
+            finally:
+                db.close()
+
+            assert captured["message"]["payload"]["data"]["file"] == "OriginalDirty.csv"
+            assert Path(captured["source_path"]).name != "OriginalDirty.csv"
+        finally:
+            if raw_path.exists():
+                raw_path.unlink()
+            cleanup_path = captured.get("cleanup_path")
+            if cleanup_path and Path(cleanup_path).exists():
+                Path(cleanup_path).unlink()
+
+
+class TestFilenameSecurity:
+    """Verify uploaded filenames are sanitized."""
+
+    def test_safe_filename_strips_paths_and_hidden_prefixes(self):
+        filename = _safe_filename(r"..\..\secret\.env")
+        assert ".." not in filename
+        assert "\\" not in filename
+        assert "/" not in filename
+        assert ":" not in filename
+        assert filename.endswith("env")

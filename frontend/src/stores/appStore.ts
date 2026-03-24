@@ -1,6 +1,15 @@
 import { create } from 'zustand';
 import type { Language } from '../i18n/translations';
 
+const isBrowser = typeof window !== 'undefined';
+
+function getStoredLanguage(): Language {
+  if (!isBrowser) {
+    return 'en';
+  }
+  return (window.localStorage.getItem('ci-lang') as Language) || 'en';
+}
+
 interface WatchdogEvent {
   batch_id: string;
   file: string;
@@ -30,17 +39,21 @@ export const useAppStore = create<AppState>((set) => ({
   toggleDarkMode: () =>
     set((state) => {
       const next = !state.darkMode;
-      if (next) {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
+      if (typeof document !== 'undefined') {
+        if (next) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
       }
       return { darkMode: next };
     }),
 
-  language: (localStorage.getItem('ci-lang') as Language) || 'en',
+  language: getStoredLanguage(),
   setLanguage: (lang) => {
-    localStorage.setItem('ci-lang', lang);
+    if (isBrowser) {
+      window.localStorage.setItem('ci-lang', lang);
+    }
     set({ language: lang });
   },
 

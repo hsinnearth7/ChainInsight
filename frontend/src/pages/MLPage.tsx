@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useAppStore } from '../stores/appStore';
 import ChartImage from '../components/ChartImage';
-import DataTable from '../components/DataTable';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useTranslation } from '../i18n/useTranslation';
 import type { AnalysisResult } from '../types/api';
@@ -58,11 +57,9 @@ export default function MLPage() {
   if (loading) return <LoadingSpinner text={t('ml.loading')} />;
   if (!batchId) return <div className="text-ci-gray text-center py-12">{t('ml.noData')}</div>;
 
-  // Parse ML results for algorithm table
-  const mlResults = analysis?.kpis as Record<string, unknown> || {};
+  const mlResults = (analysis?.kpis as Record<string, unknown>) || {};
   const algorithms: Record<string, unknown>[] = [];
 
-  // Try to extract algorithm results from various possible structures
   const categories = ['classification', 'regression', 'clustering', 'anomaly_detection', 'feature_engineering', 'genetic_algorithm'];
   for (const cat of categories) {
     const catData = mlResults[cat] as Record<string, unknown> | undefined;
@@ -72,14 +69,13 @@ export default function MLPage() {
           algorithms.push({
             category: cat.replace(/_/g, ' '),
             algorithm: name.replace(/_/g, ' '),
-            ...details as Record<string, unknown>,
+            ...(details as Record<string, unknown>),
           });
         }
       }
     }
   }
 
-  // If no parsed algorithms, build from top-level keys
   if (algorithms.length === 0) {
     for (const [key, val] of Object.entries(mlResults)) {
       if (typeof val === 'object' && val && !Array.isArray(val)) {
@@ -87,7 +83,7 @@ export default function MLPage() {
         algorithms.push({
           algorithm: key.replace(/_/g, ' '),
           status: entry.status || 'completed',
-          accuracy: entry.accuracy ?? entry.score ?? '—',
+          accuracy: entry.accuracy ?? entry.score ?? '--',
           ...entry,
         });
       }
@@ -98,10 +94,11 @@ export default function MLPage() {
     <div className="space-y-6">
       <h2 className="text-xl font-bold">{t('ml.title')}</h2>
 
-      {/* Algorithm Summary Table */}
       {algorithms.length > 0 && (
         <div className="bg-white dark:bg-ci-dark-card rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-          <h3 className="text-sm font-medium mb-3">{t('ml.algorithmSummary')} ({algorithms.length} {t('ml.models')})</h3>
+          <h3 className="text-sm font-medium mb-3">
+            {t('ml.algorithmSummary')} ({algorithms.length} {t('ml.models')})
+          </h3>
           <div className="overflow-auto max-h-[400px]">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
@@ -115,13 +112,15 @@ export default function MLPage() {
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {algorithms.map((algo, i) => {
                   const status = String(algo.status || 'completed');
-                  const metric = algo.accuracy ?? algo.score ?? algo.r2 ?? '—';
+                  const metric = algo.accuracy ?? algo.score ?? algo.r2 ?? '--';
                   return (
                     <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                       <td className="px-3 py-1.5 font-medium capitalize">{String(algo.algorithm)}</td>
-                      <td className="px-3 py-1.5 text-ci-gray capitalize">{String(algo.category || '—')}</td>
+                      <td className="px-3 py-1.5 text-ci-gray capitalize">{String(algo.category || '--')}</td>
                       <td className={`px-3 py-1.5 capitalize ${STATUS_COLORS[status] || ''}`}>{status}</td>
-                      <td className="px-3 py-1.5 font-mono">{typeof metric === 'number' ? metric.toFixed(4) : String(metric)}</td>
+                      <td className="px-3 py-1.5 font-mono">
+                        {typeof metric === 'number' ? metric.toFixed(4) : String(metric)}
+                      </td>
                     </tr>
                   );
                 })}
@@ -131,7 +130,6 @@ export default function MLPage() {
         </div>
       )}
 
-      {/* PNG Charts */}
       <h3 className="text-sm font-medium">{t('ml.analysisCharts')}</h3>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {ML_CHARTS.map((chart) => (

@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from 'recharts';
 import { api } from '../api/client';
 import { useAppStore } from '../stores/appStore';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -33,8 +42,11 @@ export default function HistoryPage() {
       ]);
       setRuns(runsData);
       setKpiHistory(historyData);
-      if (runsData.length > 0 && runsData[0].status === 'completed') {
-        setLatestBatchId(runsData[0].batch_id);
+      const latestCompletedRun = runsData
+        .filter((run) => run.status === 'completed' && run.completed_at)
+        .sort((a, b) => new Date(b.completed_at!).getTime() - new Date(a.completed_at!).getTime())[0];
+      if (latestCompletedRun) {
+        setLatestBatchId(latestCompletedRun.batch_id);
       }
     } catch {
       // no data
@@ -45,14 +57,13 @@ export default function HistoryPage() {
 
   if (loading) return <LoadingSpinner text={t('history.loading')} />;
 
-  // Prepare KPI trend data
   const trendData = kpiHistory
     .slice()
     .reverse()
     .map((entry) => {
       const kpis = entry.kpis as Record<string, number>;
       return {
-        date: entry.completed_at?.slice(0, 10) || '—',
+        date: entry.completed_at?.slice(0, 10) || '--',
         inventory_turnover: kpis.inventory_turnover,
         avg_dsi: kpis.avg_dsi,
         oos_rate: kpis.oos_rate,
@@ -64,7 +75,6 @@ export default function HistoryPage() {
     <div className="space-y-6">
       <h2 className="text-xl font-bold">{t('history.title')}</h2>
 
-      {/* KPI Trend Chart */}
       {trendData.length > 1 && (
         <div className="bg-white dark:bg-ci-dark-card rounded-lg border border-gray-200 dark:border-gray-700 p-4">
           <h3 className="text-sm font-medium mb-3">{t('history.kpiTrends')}</h3>
@@ -85,7 +95,6 @@ export default function HistoryPage() {
         </div>
       )}
 
-      {/* Runs Table */}
       <div className="bg-white dark:bg-ci-dark-card rounded-lg border border-gray-200 dark:border-gray-700">
         <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-sm font-medium">{t('history.pipelineRuns')} ({runs.length})</h3>
@@ -107,7 +116,7 @@ export default function HistoryPage() {
                 const duration =
                   run.started_at && run.completed_at
                     ? `${Math.round((new Date(run.completed_at).getTime() - new Date(run.started_at).getTime()) / 1000)}s`
-                    : '—';
+                    : '--';
                 return (
                   <tr key={run.batch_id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                     <td className="px-4 py-2 font-mono text-xs">{run.batch_id}</td>
@@ -117,10 +126,10 @@ export default function HistoryPage() {
                       </span>
                     </td>
                     <td className="px-4 py-2 text-ci-gray text-xs truncate max-w-[200px]">
-                      {run.source_file?.split(/[/\\]/).pop() || '—'}
+                      {run.source_file?.split(/[/\\]/).pop() || '--'}
                     </td>
-                    <td className="px-4 py-2 text-xs">{run.started_at ? new Date(run.started_at).toLocaleString() : '—'}</td>
-                    <td className="px-4 py-2 text-xs">{run.completed_at ? new Date(run.completed_at).toLocaleString() : '—'}</td>
+                    <td className="px-4 py-2 text-xs">{run.started_at ? new Date(run.started_at).toLocaleString() : '--'}</td>
+                    <td className="px-4 py-2 text-xs">{run.completed_at ? new Date(run.completed_at).toLocaleString() : '--'}</td>
                     <td className="px-4 py-2 text-xs font-mono">{duration}</td>
                   </tr>
                 );

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useAppStore } from '../stores/appStore';
 import { usePipelineProgress } from '../hooks/usePipelineProgress';
@@ -27,7 +27,6 @@ export default function UploadPage() {
     try {
       const result = await api.ingest(file);
       setBatchId(result.batch_id);
-      setLatestBatchId(result.batch_id);
       setActivePipelineBatchId(result.batch_id);
     } catch (e: unknown) {
       setUploadError(e instanceof Error ? e.message : 'Upload failed');
@@ -43,14 +42,8 @@ export default function UploadPage() {
     reset();
 
     try {
-      const res = await fetch('/api/ingest/existing', { method: 'POST' });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || `Failed: ${res.status}`);
-      }
-      const result = await res.json();
+      const result = await api.ingestExisting();
       setBatchId(result.batch_id);
-      setLatestBatchId(result.batch_id);
       setActivePipelineBatchId(result.batch_id);
     } catch (e: unknown) {
       setUploadError(e instanceof Error ? e.message : 'Failed to trigger pipeline');
@@ -59,10 +52,26 @@ export default function UploadPage() {
     }
   }
 
-  // Load ETL summary when pipeline completes
-  if (pipelineStatus === 'completed' && !etlSummary && batchId) {
+  useEffect(() => {
+    if (pipelineStatus !== 'completed' || etlSummary || !batchId) {
+      return;
+    }
+
     api.getAnalysis(batchId, 'etl').then((r) => setEtlSummary(r.kpis)).catch(() => {});
-  }
+  }, [batchId, etlSummary, pipelineStatus]);
+
+  useEffect(() => {
+    if (!batchId) {
+      return;
+    }
+
+    if (pipelineStatus === 'completed') {
+      setLatestBatchId(batchId);
+      setActivePipelineBatchId(null);
+    } else if (pipelineStatus === 'failed') {
+      setActivePipelineBatchId(null);
+    }
+  }, [batchId, pipelineStatus, setActivePipelineBatchId, setLatestBatchId]);
 
   return (
     <div className="space-y-6 max-w-2xl mx-auto">
@@ -89,7 +98,12 @@ export default function UploadPage() {
           <div className="text-xs text-ci-gray">
             Batch ID: <code className="font-mono">{batchId}</code>
           </div>
-          <PipelineProgress stages={stages} overallPct={overallPct} pipelineStatus={pipelineStatus} connected={connected} />
+          <PipelineProgress
+            stages={stages}
+            overallPct={overallPct}
+            pipelineStatus={pipelineStatus}
+            connected={connected}
+          />
         </>
       )}
 
@@ -98,7 +112,11 @@ export default function UploadPage() {
           <h3 className="text-sm font-medium">{t('upload.etlSummary')}</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {Object.entries(etlSummary).map(([key, val]) => (
-              <KPICard key={key} title={key.replace(/_/g, ' ')} value={typeof val === 'number' ? val.toLocaleString() : String(val ?? '—')} />
+              <KPICard
+                key={key}
+                title={key.replace(/_/g, ' ')}
+                value={typeof val === 'number' ? val.toLocaleString() : String(val ?? '--')}
+              />
             ))}
           </div>
         </div>
