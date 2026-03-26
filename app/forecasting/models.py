@@ -423,7 +423,11 @@ class ChronosForecaster(ForecastModel):
         records = []
         if h > self.prediction_length:
             import warnings
-            warnings.warn(f"Requested horizon {h} exceeds prediction_length {self.prediction_length}, truncating to {self.prediction_length}")
+            warnings.warn(
+                f"Requested horizon {h} exceeds prediction_length"
+                f" {self.prediction_length}, truncating to {self.prediction_length}",
+                stacklevel=2,
+            )
         h = min(h, self.prediction_length)
 
         for uid, grp in self._train_data.groupby("unique_id"):

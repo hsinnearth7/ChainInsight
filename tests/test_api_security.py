@@ -9,12 +9,10 @@ import pytest
 from fastapi import HTTPException
 
 from app.api.routes import (
-    WATCHDOG_STAGING_DIR,
     _prune_watchdog_staging,
     _safe_filename,
     _wait_for_stable_csv,
 )
-from app.config import RAW_DIR
 from app.db.models import PipelineRun, SessionLocal
 
 

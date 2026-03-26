@@ -1,6 +1,5 @@
 """Tests for pipeline orchestrator."""
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 from app.pipeline.orchestrator import PipelineOrchestrator
 

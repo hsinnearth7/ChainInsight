@@ -20,16 +20,16 @@ _test_db = _test_db_file.name
 _test_db_file.close()
 os.environ["DATABASE_URL"] = f"sqlite:///{_test_db}"
 
-from app.db.models import Base, engine
+from app.db.models import Base, get_engine
 from app.main import app
 
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_db():
     """Create test database tables (uses temp file DB, see module-level comment)."""
-    Base.metadata.create_all(engine)
+    Base.metadata.create_all(get_engine())
     yield
-    Base.metadata.drop_all(engine)
+    Base.metadata.drop_all(get_engine())
     # Clean up temp DB file
     try:
         os.unlink(_test_db)

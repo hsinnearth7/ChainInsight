@@ -1,6 +1,7 @@
 """ML Analysis Pipeline — Charts 15-22 (30 AI Algorithms)."""
 
 import logging
+import warnings
 from pathlib import Path
 from typing import Optional
 
@@ -9,24 +10,14 @@ import numpy as np
 import pandas as pd
 
 matplotlib.use("Agg")
-import warnings
 
-import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
-import seaborn as sns
-from matplotlib.gridspec import GridSpec
-from sklearn.exceptions import ConvergenceWarning
-from sklearn.pipeline import Pipeline as SKPipeline
-
-    # ConvergenceWarning is suppressed locally around sklearn calls, not globally
-
-# Supervised classifiers
-# Unsupervised
-from sklearn.cluster import DBSCAN, AgglomerativeClustering, KMeans
-from sklearn.decomposition import PCA
-
-# Anomaly detection
-from sklearn.ensemble import (
+import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.ticker as mticker  # noqa: E402
+import seaborn as sns  # noqa: E402
+from matplotlib.gridspec import GridSpec  # noqa: E402
+from sklearn.cluster import DBSCAN, AgglomerativeClustering, KMeans  # noqa: E402
+from sklearn.decomposition import PCA  # noqa: E402
+from sklearn.ensemble import (  # noqa: E402
     AdaBoostClassifier,
     GradientBoostingClassifier,
     GradientBoostingRegressor,
@@ -34,26 +25,26 @@ from sklearn.ensemble import (
     RandomForestClassifier,
     RandomForestRegressor,
 )
-from sklearn.linear_model import LinearRegression, LogisticRegression
-from sklearn.manifold import TSNE
-from sklearn.metrics import (
+from sklearn.exceptions import ConvergenceWarning  # noqa: E402
+from sklearn.linear_model import LinearRegression, LogisticRegression  # noqa: E402
+from sklearn.manifold import TSNE  # noqa: E402
+from sklearn.metrics import (  # noqa: E402
     accuracy_score,
     confusion_matrix,
     mean_squared_error,
     r2_score,
     silhouette_score,
 )
-from sklearn.model_selection import cross_val_score, train_test_split
-from sklearn.naive_bayes import GaussianNB
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.neural_network import MLPClassifier, MLPRegressor
+from sklearn.model_selection import cross_val_score, train_test_split  # noqa: E402
+from sklearn.naive_bayes import GaussianNB  # noqa: E402
+from sklearn.neighbors import KNeighborsClassifier  # noqa: E402
+from sklearn.neural_network import MLPClassifier, MLPRegressor  # noqa: E402
+from sklearn.pipeline import Pipeline as SKPipeline  # noqa: E402
+from sklearn.preprocessing import LabelEncoder, StandardScaler  # noqa: E402
+from sklearn.svm import SVC  # noqa: E402
+from sklearn.tree import DecisionTreeClassifier  # noqa: E402
 
-# Preprocessing / model selection / metrics
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.svm import SVC
-from sklearn.tree import DecisionTreeClassifier
-
-from app.config import (
+from app.config import (  # noqa: E402
     CHART_BG_COLOR,
     CHART_DPI,
     CHART_TEXT_COLOR,
@@ -63,7 +54,9 @@ from app.config import (
     GA_MUTATION_RATE,
     GA_POPULATION,
 )
-from app.pipeline.enrichment import enrich_base
+from app.pipeline.enrichment import enrich_base  # noqa: E402
+
+# ConvergenceWarning is suppressed locally around sklearn calls, not globally
 
 logger = logging.getLogger(__name__)
 

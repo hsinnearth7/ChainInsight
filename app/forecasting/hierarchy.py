@@ -18,7 +18,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from app.forecasting.data_generator import HierarchySpec, build_hierarchy_matrix
+from app.forecasting.data_generator import build_hierarchy_matrix
 from app.log_config import get_logger
 
 logger = get_logger(__name__)
@@ -185,7 +185,6 @@ class HierarchicalForecaster:
             all_ids.extend(level_ids)
 
         bottom_ids = tags["sku"]
-        n_bottom = len(bottom_ids)
 
         # Pivot to matrix: rows=dates, columns=unique_ids
         pivot_df = Y_hat.pivot(index="ds", columns="unique_id", values="y_hat")

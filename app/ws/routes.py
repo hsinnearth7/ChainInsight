@@ -41,7 +41,7 @@ async def _authenticate_ws(ws: WebSocket) -> bool:
     except Exception:
         try:
             await ws.close(code=4003, reason="Auth failed")
-        except Exception:
+        except Exception:  # noqa: S110
             pass
         return False
     await ws.close(code=4003, reason="Invalid or missing API key")
