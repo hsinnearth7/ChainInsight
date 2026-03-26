@@ -93,8 +93,8 @@ class TestCohensD:
         assert result["d"] == 0
 
     def test_large_effect(self):
-        group1 = [10.0, 11.0, 12.0, 10.5, 11.5]
-        group2 = [20.0, 21.0, 22.0, 20.5, 21.5]
+        group1 = [20.0, 21.0, 22.0, 20.5, 21.5]
+        group2 = [10.0, 11.0, 12.0, 10.5, 11.5]
         result = cohens_d(group1, group2)
         assert result["d"] > 0.8
         assert result["magnitude"] == "L"

@@ -22,6 +22,10 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_test_db}"
 
 from app.db.models import Base, get_engine
 from app.main import app
+from app.rbac import init_rbac_from_env
+
+# Register the test API key in the RBAC user store so RBACMiddleware accepts it.
+init_rbac_from_env()
 
 
 @pytest.fixture(scope="session", autouse=True)

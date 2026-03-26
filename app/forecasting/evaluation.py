@@ -277,7 +277,9 @@ def cohens_d(group1: list[float], group2: list[float]) -> dict[str, Any]:
 def confidence_interval(values: list[float], confidence: float = 0.95) -> tuple[float, float]:
     """Compute confidence interval for a list of values."""
     n = len(values)
-    if n < 2:
+    if n == 1:
+        return (float(values[0]), float(values[0]))
+    if n < 1:
         return (float('nan'), float('nan'))
 
     mean = np.mean(values)
